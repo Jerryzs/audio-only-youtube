@@ -112,15 +112,30 @@ function applyVideoPlayerStyling(videoElement: HTMLVideoElement) {
 }
 
 function makeSetAudioURL(videoElement: HTMLVideoElement, url: string) {
+  var startTime = 0;
+
   function setAudioURL() {
-    if (url === '' || videoElement.src === url) {
+    if (url === '') {
       return;
     }
 
+    if (videoElement.src === url) {
+      if (startTime) {
+        videoElement.currentTime = startTime;
+        startTime = 0;
+      }
+
+      if (videoElement.paused) {
+        videoElement.play();
+      }
+
+      return;
+    }
+
+    startTime = videoElement.currentTime;
+
     videoElement.pause();
     videoElement.src = url;
-    videoElement.currentTime = 0;
-    videoElement.play();
   }
   return setAudioURL;
 }
