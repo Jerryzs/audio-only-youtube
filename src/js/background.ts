@@ -1,47 +1,67 @@
 class Background {
-  private tabIds = new Map();
+  private tabIds: Map<number, string>;
+  private currentTab: number | undefined;
 
   constructor() {
     this.tabIds = new Map();
 
-    chrome.storage.local.get('audio_only_youtube_disabled', (values) => {
-      let disabled = values.audio_only_youtube_disabled;
-      if (typeof disabled === 'undefined') {
-        disabled = false;
-        this.saveSettings(disabled);
-      }
+    this.disableExtension();
 
-      if (disabled) {
-        this.disableExtension();
-      } else {
-        this.enableExtension();
-      }
-    });
-
-    chrome.browserAction.onClicked.addListener(() => {
-      chrome.storage.local.get('audio_only_youtube_disabled', (values) => {
-        let disabled = values.audio_only_youtube_disabled;
-
-        if (disabled) {
-          this.enableExtension();
-        } else {
-          this.disableExtension();
+    chrome.tabs.query(
+      {
+        active: true,
+        currentWindow: true
+      },
+      (tabs) => {
+        if (tabs.length === 0) {
+          return;
         }
 
-        disabled = !disabled;
-        this.saveSettings(disabled);
-      });
+        this.currentTab = tabs[0].id;
+      }
+    );
+
+    chrome.tabs.onActivated.addListener((activeInfo) => {
+      this.currentTab = activeInfo.tabId;
+
+      if (this.tabIds.has(this.currentTab)) {
+        this.enableExtension();
+      } else {
+        this.disableExtension();
+      }
+    })
+
+    chrome.tabs.onUpdated.addListener(this.sendMessage);
+    chrome.webRequest.onBeforeRequest.addListener(
+      this.processRequest,
+      { urls: ['<all_urls>'] },
+    );
+
+    chrome.browserAction.onClicked.addListener(() => {
+      if (typeof this.currentTab === 'undefined') {
+        return;
+      }
 
       chrome.tabs.query(
         {
           active: true,
           currentWindow: true,
-          url: '*://*.youtube.com/*',
+          url: '*://*.youtube.com/*'
         },
         (tabs) => {
-          if (tabs.length > 0) {
-            chrome.tabs.update(tabs[0].id!, { url: tabs[0].url });
+          if (tabs.length === 0 || !tabs[0].id) {
+            return;
           }
+
+          if (this.tabIds.has(tabs[0].id)) {
+            this.tabIds.delete(tabs[0].id!);
+            this.disableExtension();
+          } else {
+            this.tabIds.set(tabs[0].id, '');
+            this.enableExtension();
+          }
+
+          chrome.tabs.update(tabs[0].id, { url: tabs[0].url });
         }
       );
     });
@@ -62,13 +82,12 @@ class Background {
     return `${urlParts[0]}?${filteredParameters.join('&')}`;
   };
 
-  processRequest = (details: any) => {
+  processRequest = (details: chrome.webRequest.WebRequestBodyDetails) => {
     const { url, tabId } = details;
-    if (!url.includes('mime=audio')) return;
 
-    if (url.includes('live=1')) {
-      this.tabIds.set(tabId, '');
-      this.sendMessage(tabId);
+    if (!this.tabIds.has(tabId)
+            || !url.includes('mime=audio')
+            || url.includes('live=1')) {
       return;
     }
 
@@ -81,11 +100,13 @@ class Background {
   };
 
   sendMessage = (tabId: number) => {
-    if (this.tabIds.has(tabId)) {
-      chrome.tabs.sendMessage(tabId, {
-        url: this.tabIds.get(tabId),
-      });
+    if (!this.tabIds.has(tabId)) {
+      return;
     }
+
+    chrome.tabs.sendMessage(tabId, {
+      url: this.tabIds.get(tabId),
+    });
   };
 
   enableExtension = () => {
@@ -95,11 +116,6 @@ class Background {
         38: 'img/icon38.png',
       },
     });
-    chrome.tabs.onUpdated.addListener(this.sendMessage);
-    chrome.webRequest.onBeforeRequest.addListener(
-      this.processRequest,
-      { urls: ['<all_urls>'] },
-    );
   };
 
   disableExtension = () => {
@@ -109,13 +125,6 @@ class Background {
         38: 'img/disabled_icon38.png',
       },
     });
-    chrome.tabs.onUpdated.removeListener(this.sendMessage);
-    chrome.webRequest.onBeforeRequest.removeListener(this.processRequest);
-    this.tabIds.clear();
-  };
-
-  saveSettings = (disabled: boolean) => {
-    chrome.storage.local.set({ audio_only_youtube_disabled: disabled }); // eslint-disable-line
   };
 }
 
