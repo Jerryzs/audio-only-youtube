@@ -16,7 +16,11 @@ Note: It doesn't support Youtube live videos.
 
 [Download](https://github.com/Jerryzs/audio-only-youtube/releases/download/v0.8.2-Jerryzs.1/audio-only-youtube-0.8.2-Jerryzs.1.zip)
 
-1. drag the downloaded .zip file to the chrome extensions page (chrome://extensions/).
+1. extract the content of the .zip file to a folder
+
+2. go to the Chrome extensions page and enable "developer mode"
+
+3. click on "Load Unpacked" and select the folder where the .zip file is extracted
 
 ## Contribute
 
